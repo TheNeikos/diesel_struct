@@ -18,5 +18,6 @@ mod models {
 fn main() {
     let mut user_builder = models::User::build();
     user_builder.set_name(String::from("Luke Cage"));
-    user_builder.save();
+    let user = user_builder.save();
+    println!("New User id: {}", user.id());
 }

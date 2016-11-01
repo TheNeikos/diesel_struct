@@ -38,6 +38,7 @@ fn expand_diesel_struct(ast: &syn::MacroInput) -> quote::Tokens {
     let new_name = Ident::new(format!("New{}", name));
     let new_name_builder = Ident::new(format!("New{}Builder", name));
     let update_name = Ident::new(format!("Update{}", name));
+    let model_name = Ident::new(format!("{}Model", name));
 
     let new_fields : Vec<_> = fields.iter()
         .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "idx")) // Remove all #[idx] fields
@@ -110,7 +111,7 @@ fn expand_diesel_struct(ast: &syn::MacroInput) -> quote::Tokens {
                 }
             )*
 
-            pub fn save(self) -> #name {
+            pub fn save(self) -> #model_name {
                 unimplemented!()
             }
         }
@@ -126,9 +127,21 @@ fn remove_annotations(ast: &syn::MacroInput) -> quote::Tokens {
     };
 
     let model_fields : Vec<_> = fields.iter()
-        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "tmp")) // Remove all #[temp] fields
+        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "tmp")) // Remove all #[tmp] fields
         .cloned()
         .map(strip_attributes)
+        .collect();
+
+    let model_field_getters : Vec<_> = fields.iter()
+        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "tmp")) // Remove all #[tmp] fields
+        .map(|x| x.ident.as_ref().unwrap().clone())
+        .collect();
+
+    let model_field_names : Vec<_> = model_field_getters.clone();
+
+    let model_field_types : Vec<_> = fields.iter()
+        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "tmp")) // Remove all #[tmp] fields
+        .map(|x| x.ty.clone())
         .collect();
 
     let vis = &ast.vis;
@@ -140,6 +153,15 @@ fn remove_annotations(ast: &syn::MacroInput) -> quote::Tokens {
 
         #vis struct #model_name {
             #( #model_fields ),*
+        }
+
+        impl #model_name {
+            #(
+                #[allow(dead_code)]
+                pub fn #model_field_getters (&self) -> &#model_field_types {
+                    &self.#model_field_names
+                }
+            )*
         }
     }
 }
