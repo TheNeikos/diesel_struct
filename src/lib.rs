@@ -1,3 +1,4 @@
+#![recursion_limit="255"]
 #![feature(proc_macro, proc_macro_lib)]
 
 extern crate proc_macro;
@@ -14,11 +15,8 @@ pub fn diesel_struct(input: TokenStream) -> TokenStream {
 
     let expanded = expand_diesel_struct(&ast);
 
-    let ast = remove_annotations(&ast);
-
-    let result = quote!(#ast #expanded).to_string();
-    println!("{}", result);
-    result.parse().unwrap()
+    println!("{}", expanded);
+    expanded.to_string().parse().unwrap()
 }
 
 fn expand_diesel_struct(ast: &syn::MacroInput) -> quote::Tokens {
@@ -40,8 +38,12 @@ fn expand_diesel_struct(ast: &syn::MacroInput) -> quote::Tokens {
     let update_name = Ident::new(format!("Update{}", name));
     let model_name = Ident::new(format!("{}Model", name));
 
+    let without = |name| {
+        move |x: &&syn::Field| !x.attrs.iter().any(|x| x.value.name() == name)
+    };
+
     let new_fields : Vec<_> = fields.iter()
-        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "idx")) // Remove all #[idx] fields
+        .filter(without("idx")) // Remove all #[idx] fields
         .cloned()
         .map(strip_attributes)
         .collect();
@@ -56,8 +58,8 @@ fn expand_diesel_struct(ast: &syn::MacroInput) -> quote::Tokens {
         .collect();
 
     let update_fields : Vec<_> = fields.iter()
-        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "idx")) // Remove all #[idx] fields
-        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "fix")) // Remove all #[fix] fields
+        .filter(without("idx")) // Remove all #[idx] fields
+        .filter(without("fix")) // Remove all #[fix] fields
         .cloned()
         .map(strip_attributes)
         .collect();
@@ -81,7 +83,40 @@ fn expand_diesel_struct(ast: &syn::MacroInput) -> quote::Tokens {
         .map(|x| Ident::new(format!("set_{}", x.ident.as_ref().unwrap())))
         .collect();
 
+    let model_fields : Vec<_> = fields.iter()
+        .filter(without("tmp")) // Remove all #[tmp] fields
+        .cloned()
+        .map(strip_attributes)
+        .collect();
+
+    let model_field_getters : Vec<_> = fields.iter()
+        .filter(without("tmp")) // Remove all #[tmp] fields
+        .map(|x| x.ident.as_ref().unwrap().clone())
+        .collect();
+
+    let model_field_names : Vec<_> = model_field_getters.clone();
+
+    let model_field_types : Vec<_> = fields.iter()
+        .filter(without("tmp")) // Remove all #[tmp] fields
+        .map(|x| x.ty.clone())
+        .collect();
+
     quote! {
+        #vis struct #name;
+
+        #vis struct #model_name {
+            #( #model_fields ),*
+        }
+
+        impl #model_name {
+            #(
+                #[allow(dead_code)]
+                pub fn #model_field_getters (&self) -> &#model_field_types {
+                    &self.#model_field_names
+                }
+            )*
+        }
+
         #vis struct #new_name {
             #( #new_fields ),*
         }
@@ -114,54 +149,6 @@ fn expand_diesel_struct(ast: &syn::MacroInput) -> quote::Tokens {
             pub fn save(self) -> #model_name {
                 unimplemented!()
             }
-        }
-    }
-}
-
-fn remove_annotations(ast: &syn::MacroInput) -> quote::Tokens {
-    use syn::{Body, VariantData, Ident};
-
-    let fields = match ast.body {
-        Body::Struct(VariantData::Struct(ref fields)) => fields.clone(),
-        _ => panic!("DieselStruct can only be used on non-tuple structs"),
-    };
-
-    let model_fields : Vec<_> = fields.iter()
-        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "tmp")) // Remove all #[tmp] fields
-        .cloned()
-        .map(strip_attributes)
-        .collect();
-
-    let model_field_getters : Vec<_> = fields.iter()
-        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "tmp")) // Remove all #[tmp] fields
-        .map(|x| x.ident.as_ref().unwrap().clone())
-        .collect();
-
-    let model_field_names : Vec<_> = model_field_getters.clone();
-
-    let model_field_types : Vec<_> = fields.iter()
-        .filter(|x| !x.attrs.iter().any(|y| y.value.name() == "tmp")) // Remove all #[tmp] fields
-        .map(|x| x.ty.clone())
-        .collect();
-
-    let vis = &ast.vis;
-    let name = &ast.ident;
-    let model_name = Ident::new(format!("{}Model", name));
-
-    quote! {
-        #vis struct #name;
-
-        #vis struct #model_name {
-            #( #model_fields ),*
-        }
-
-        impl #model_name {
-            #(
-                #[allow(dead_code)]
-                pub fn #model_field_getters (&self) -> &#model_field_types {
-                    &self.#model_field_names
-                }
-            )*
         }
     }
 }
