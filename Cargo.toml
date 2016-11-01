@@ -1,0 +1,11 @@
+[package]
+authors = ["Marcel Müller <neikos@neikos.email>"]
+name = "diesel_struct"
+version = "0.1.0"
+
+[dependencies]
+quote = "0.3.5"
+syn = "0.10.0"
+
+[lib]
+proc-macro = true
