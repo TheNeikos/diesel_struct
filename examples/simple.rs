@@ -1,8 +1,15 @@
 #![feature(proc_macro)]
 #[macro_use] extern crate diesel_struct;
+#[macro_use] extern crate diesel_codegen;
+
+#[derive(Queryable)]
+pub struct Test {
+    x: i64
+}
 
 mod models {
     #[derive(DieselStruct)]
+    #[table_name="users"]
     pub struct User {
         /// The ID of the user
         #[idx] id: i64,

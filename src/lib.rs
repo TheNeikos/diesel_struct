@@ -104,6 +104,7 @@ fn expand_diesel_struct(ast: &syn::MacroInput) -> quote::Tokens {
     quote! {
         #vis struct #name;
 
+        #[derive(Queryable)]
         #vis struct #model_name {
             #( #model_fields ),*
         }
