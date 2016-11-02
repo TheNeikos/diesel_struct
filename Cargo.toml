@@ -9,7 +9,10 @@ syn = "0.10.0"
 
 [dev-dependencies]
 diesel = "0.8.1"
-diesel_codegen = "0.8.1"
 
 [lib]
 proc-macro = true
+
+[dev-dependencies.diesel_codegen]
+version = "0.8"
+features = ["sqlite"]
